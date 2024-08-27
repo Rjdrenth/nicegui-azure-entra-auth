@@ -1,0 +1,58 @@
+[tool.poetry]
+name = "nicegui_azure_entra_auth"
+version = "0.1.0"
+description = ""
+authors = ["R. Drenth <your@email.com>"]
+
+[tool.poetry.dependencies]
+python = ">=3.10,<3.13"
+cachetools = "^5.5.0"
+msal = "^1.30.0"
+nicegui = "^1.4.36"
+pyjwt = "^2.9.0"
+python-dotenv = "^1.0.1"
+
+[tool.poetry.group.dev.dependencies]
+black = "^24.8.0"
+bump2version = "^1.0.1"
+cookiecutter = "^2.6.0"
+coverage = "^7.6.1"
+coverage-badge = "^1.1.2"
+ipykernel = "^6.29.5"
+isort = "^5.13.2"
+nb-black-only = "^1.0.9"
+pre-commit = "^3.8.0"
+pytest = "^8.3.2"
+pytest-cov = "^5.0.0"
+pytest-html = "^4.1.1"
+
+[build-system]
+requires = ["poetry-core>=1.9.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.black]
+line-length = 120
+
+[tool.isort]
+profile = "black"
+multi_line_output = 3
+
+[[tool.poetry.source]]
+name = "PyPI"
+priority = "primary"
+
+# Define any private repositories here
+# [[tool.poetry.source]]
+# name = "your-private-repo"
+# url = "url to your prive repo"
+# priority = "supplemental"
+
+[coverage.paths]
+source = "nicegui_azure_entra_auth"
+
+[coverage.run]
+branch = true
+
+[coverage.report]
+fail_under = 10
+show_missing = true

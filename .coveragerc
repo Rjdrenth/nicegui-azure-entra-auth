@@ -1,0 +1,4 @@
+[run]
+omit =
+	# Exclude all scripts
+	nicegui_azure_entra_auth/scripts/**

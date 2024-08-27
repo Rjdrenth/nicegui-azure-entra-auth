@@ -1,0 +1,81 @@
+# Python Image
+FROM pypy:3.10-slim
+
+ARG DEPLOYMENT_ENV=dev
+
+# Don't create a virtual env and instead use system python
+ENV DEPLOYMENT_ENV=${DEPLOYMENT_ENV} \
+	# python:
+	PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=off \
+    PIP_DISABLE_PIP_VERSION_CHECK=on \
+    # poetry:
+	POETRY_VIRTUALENVS_CREATE=false
+
+	# Enable if you want to use a specific poetry version, and add "\  to the line above
+	# POETRY_VERSION=1.2.2
+
+# Install unix dependencies
+RUN apt-get update && \
+	apt-get install -y \
+	apt-utils \
+	build-essential \
+	curl \
+	git \
+	gcc && \
+	sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d -b /usr/local/bin
+
+# Create new user which will run the code, so we aren't running as root
+RUN useradd --create-home python_user
+
+# Change owner of /opt folder, to maintain compatibility with the venv_Dockerfile
+RUN chown -R python_user:python_user /opt
+
+# Change the owner of the location where python installs stuff when no virtual environment is used
+RUN chown -R python_user:python_user /usr/local/
+
+# Install poetry
+USER python_user
+RUN curl -sSL https://install.python-poetry.org | python3 -
+
+# --- Uncomment when using Google Artifacts to install private packages ---
+# # Obtain Google Artifact credentials from Build Arguments
+# ARG GCP_ARTIFACT_URL  $GCP_ARTIFACT_URL
+# ARG GCP_ARTIFACT_USER  $GCP_ARTIFACT_USER
+# ARG GCP_ARTIFACT_PASSWORD  $GCP_ARTIFACT_PASSWORD
+#
+# # Configure our Google Artifact repository in Poetry
+# RUN poetry config repositories.google_artifact $GCP_ARTIFACT_URL
+# RUN poetry config http-basic.google_artifact $GCP_ARTIFACT_USER $GCP_ARTIFACT_PASSWORD
+# --- Uncomment when using Google Artifacts to install private packages ---
+
+# Make sure poetry can be used
+ENV PATH="/home/python_user/.local/bin:$PATH"
+
+# Create project directory
+RUN mkdir /home/python_user/nicegui_azure_entra_auth
+WORKDIR /home/python_user/nicegui_azure_entra_auth
+
+# In order to make our package importable later on, but without copying the code (which we will copy later in the Dockerfile),
+# we do have to create a directory with an accompanying __init__.py file so that poetry can install it (in editable mode).
+RUN mkdir nicegui_azure_entra_auth && touch ./nicegui_azure_entra_auth/__init__.py
+
+# Install dependencies WITHOUT development dependencies
+COPY --chown=python_user:python_user ./pyproject.toml /home/python_user/nicegui_azure_entra_auth/pyproject.toml
+COPY --chown=python_user:python_user ./poetry.lock /home/python_user/nicegui_azure_entra_auth/poetry.lock
+RUN poetry install --without dev
+
+# Install development dependencies if relevant
+RUN poetry install $(test "$DEPLOYMENT_ENV" == "production" && echo "--without dev") --no-interaction --no-ansi
+
+# Copy supporting files
+# COPY --chown=python_user:python_user file_to_copy destination_file
+
+# Copy application code
+COPY --chown=python_user:python_user ./nicegui_azure_entra_auth/ ./nicegui_azure_entra_auth
+COPY --chown=python_user:python_user ./tests/ ./tests/
+COPY --chown=python_user:python_user ./Taskfile.yml ./Taskfile.yml
+COPY --chown=python_user:python_user ./Taskfiles/ ./Taskfiles/
+
+# Run code with pypoetry
+CMD poetry run python nicegui_azure_entra_auth/scripts/deployment/container_entry_point.py

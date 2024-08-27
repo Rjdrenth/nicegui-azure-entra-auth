@@ -1,0 +1,31 @@
+version: '3'
+
+tasks:
+
+  # --- Base Dockerfile - for production
+  build:
+    desc: Build a Docker image to run/deploy your project.
+    cmds:
+      - docker build --file docker/Dockerfile -t nicegui_azure_entra_auth .
+
+      # Use this line if you're using a private Google Artifact repository
+      # - docker build --file docker/Dockerfile --build-arg GCP_ARTIFACT_URL=$GCP_ARTIFACT_URL --build-arg GCP_ARTIFACT_USER=$GCP_ARTIFACT_USER --build-arg GCP_ARTIFACT_PASSWORD=$GCP_ARTIFACT_PASSWORD -t nicegui_azure_entra_auth .
+    silent: true
+
+  run:
+    desc: Start a container using your project's Docker image.
+    cmds:
+      - docker run --rm -it --network="host" --env-file nicegui_azure_entra_auth.env --name nicegui_azure_entra_auth -v ${PWD}/data:/home/python_user/nicegui_azure_entra_auth/data nicegui_azure_entra_auth
+    silent: true
+
+  test:
+    desc: Execute your project's tests in a Docker container.
+    cmds:
+      - docker run --rm -it --network="host" --env-file nicegui_azure_entra_auth.env --name nicegui_azure_entra_auth -v ${PWD}/data:/home/python_user/nicegui_azure_entra_auth/data nicegui_azure_entra_auth /bin/bash -c "task pytest"
+    silent: true
+
+  inspect:
+    desc: Start a container and open a shell to inspect its contents and execute commands.
+    cmds:
+      - docker run --rm -it --network="host" --env-file nicegui_azure_entra_auth.env --name nicegui_azure_entra_auth -v ${PWD}/data:/home/python_user/nicegui_azure_entra_auth/data nicegui_azure_entra_auth /bin/bash
+    silent: true

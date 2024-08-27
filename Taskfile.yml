@@ -1,0 +1,201 @@
+version: '3'
+
+dotenv: ['.env']
+
+includes:
+  docker: Taskfiles/docker_tasks.yml
+
+tasks:
+
+  default:
+    cmds:
+      - task -l
+    silent: true
+
+  poetry:
+    desc: Update poetry and create / update your virtual environment.
+    cmds:
+      - echo ""
+      - echo "----------------------"
+      - echo "- Installing poetry virtual environment.."
+      - echo "----------------------"
+      - poetry self update
+
+      - poetry env use {{shellQuote .PYTHON_PATH}}
+
+      - poetry run pip install --upgrade pip
+      - poetry install
+      - echo "Finished installing virtual environment."
+    vars:
+      PYTHON_PATH:
+
+        sh: '{{if eq OS "windows"}}powershell "(Get-Command python).Path"{{else}}which python3{{end}}'
+
+    silent: true
+
+  register-jupyter-kernel:
+    # desc: Register the virtual environment as a Jupyter Kernel, so it is accessible in notebooks.
+    cmds:
+      - echo ""
+      - echo "----------------------"
+      - echo "- Registering poetry environment as jupyter kernel with name 'nicegui_azure_entra_auth'.."
+      - echo "----------------------"
+      - poetry install
+      - poetry add --group dev ipykernel
+      - poetry run python -m ipykernel install --user --name=nicegui_azure_entra_auth
+      - echo "Finished registering jupyter kernel."
+    silent: true
+
+  pytest:
+    desc: Execute all tests.
+    cmds:
+      - poetry run pytest --cache-clear
+    silent: true
+
+  pre-commit-install:
+    desc: Install pre-commit for your repository so it runs after each commit.
+    cmds:
+      - echo ""
+      - echo "----------------------"
+      - echo "- Installing pre-commit.."
+      - echo "----------------------"
+      - poetry run pre-commit install
+      - echo "Finished installing pre-commit."
+    silent: true
+
+  pre-commit-all:
+    desc: Apply pre-commit to all files.
+    cmds:
+      - poetry run pre-commit run --all-files
+    silent: true
+
+  pre-commit-uninstall:
+    desc: Uninstall pre-commit for your repository so it no longer runs after each commit.
+    cmds:
+      - echo ""
+      - echo "----------------------"
+      - echo "- Uninstalling pre-commit.."
+      - echo "----------------------"
+      - poetry run pre-commit uninstall
+      - echo "Finished installing pre-commit."
+    silent: true
+
+  initialise-project:
+    desc: "\n    Initialises your project by: \n     1) creating the poetry virtual environment \n     2) Installing pre-commit \n     3) Registering the virtual environment as jupyter kernel"
+    cmds:
+      - '{{if eq OS "windows"}}powershell "copy .env.template .env"{{end}}'
+      - '{{if eq OS "linux"}}cp .env.template .env{{end}}'
+      - task: poetry
+      - task: pre-commit-install
+      - task: register-jupyter-kernel
+    silent: true
+
+  bump-version-major:
+    desc: Increases the major version of your project according to semantic versioning. In "x.y.z" the "x" is increased.
+    cmds:
+      - poetry run bump2version major
+    silent: true
+
+  bump-version-minor:
+    desc: Increases the minor version of your project according to semantic versioning. In "x.y.z" the "y" is increased.
+    cmds:
+      - poetry run bump2version minor
+    silent: true
+
+  bump-version-patch:
+    desc: Increases the patch version of your project according to semantic versioning. In "x.y.z" the "z" is increased.
+    cmds:
+      - poetry run bump2version patch
+    silent: true
+
+  prepare-publish-package:
+    # desc: Clears the "dist/" folder and let Poetry build a distributable package.
+    cmds:
+
+      - '{{if eq OS "windows"}}powershell "mkdir -Force dist"{{end}}'
+      - '{{if eq OS "linux"}}mkdir -p dist{{end}}'
+      - '{{if eq OS "windows"}}powershell "rm ./dist/*"{{end}}'
+      - '{{if eq OS "linux"}}rm ./dist/*{{end}}'
+
+      - poetry build
+    silent: true
+
+  publish-package-pypi:
+    desc: Upload nicegui_azure_entra_auth to Pypi.
+    cmds:
+      - task: prepare-publish-package
+      - echo ""
+      - echo "----------------------"
+      - echo "- Attempting to publish the package to Pypi..."
+      - echo "----------------------"
+      - twine upload dist/* -u $PYPI_USER -p $PYPI_PASSWORD
+      - echo "----------------------"
+      - echo "- Package publisched successfully to Pypi."
+      - echo "----------------------"
+    silent: true
+
+  publish-package-google-artifacts:
+    desc: Upload nicegui_azure_entra_auth to Google Artifact Registry.
+    cmds:
+      - task: prepare-publish-package
+      - echo ""
+      - echo "----------------------"
+      - echo "- Attempting to publish the package to Google Artifact Registry..."
+      - echo "----------------------"
+      - twine upload --repository-url $GCP_ARTIFACT_URL dist/* -u $GCP_ARTIFACT_USER -p $GCP_ARTIFACT_PASSWORD
+      - echo "----------------------"
+      - echo "- Package publisched successfully  to Google Artifact Registry."
+      - echo "----------------------"
+    silent: true
+
+  update-project-template:
+    desc: Updates the project files according to the latest version of the project template.
+    cmds:
+      - echo ""
+      - echo "----------------------"
+      - echo "- Updating project according to project template..."
+      - echo "----------------------"
+      - poetry run python ./.project_template/update_project_template.py
+      - echo "----------------------"
+      - echo "- Project has been updated according to the latest version of the project template."
+      - echo "- Note; You must MANUALLY verify what changes were made!"
+      - echo "-       Some changes might not be appliccable for a specific project"
+      - echo "----------------------"
+    silent: true
+
+  delete-venv:
+    # desc: Deletes your virtual environment.
+    cmds:
+      - echo ""
+      - echo "----------------------"
+
+      - echo "- Deleting virtual environment at {{.VENV_PATH_ROOT}}.."
+      - echo "----------------------"
+      - '{{if eq OS "windows"}}powershell "rm -Force -Recurse {{shellQuote .VENV_PATH_ROOT}}"{{end}}'
+      - '{{if eq OS "linux"}}rm -R {{shellQuote .VENV_PATH_ROOT}}{{end}}'
+
+      - echo "----------------------"
+      - echo "- Virtual environment has been deleted"
+      - echo "----------------------"
+    vars:
+      VENV_PATH_ROOT:
+        sh: poetry env info -p
+    silent: true
+
+  reset-venv:
+    desc: Deletes and reinitialises your virtual environment.
+    cmds:
+      - task: delete-venv
+      - task: initialise-project
+      - echo ""
+      - echo "----------------------"
+      - echo "- Virtual environment has been reset!"
+      - echo "----------------------"
+    silent: true
+
+  coverage:
+    desc: Calculate test coverage
+    cmds:
+      - poetry run pytest --cov-report html --cov=nicegui_azure_entra_auth tests/
+      - poetry run coverage-badge -o assets/images/coverage.svg -f
+    silent: true

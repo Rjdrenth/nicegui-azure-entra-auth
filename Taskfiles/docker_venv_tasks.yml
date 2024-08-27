@@ -1,0 +1,31 @@
+version: '3'
+
+tasks:
+
+  # --- Docker venv - for docker-based development
+  build:
+    desc: Build a Docker image to use as an interpreter during development and/or to execute your notebooks in.
+    cmds:
+      - docker build --file docker/venv_Dockerfile -t nicegui_azure_entra_auth_venv .
+
+      # Use this line if you're using a private Google Artifact repository
+      # - docker build --file docker/venv_Dockerfile --build-arg GCP_ARTIFACT_URL=$GCP_ARTIFACT_URL --build-arg GCP_ARTIFACT_USER=$GCP_ARTIFACT_USER --build-arg GCP_ARTIFACT_PASSWORD=$GCP_ARTIFACT_PASSWORD -t nicegui_azure_entra_auth_venv .
+    silent: true
+
+  run:
+    desc: Start a container using your project's development Docker image with a Jupyter notebook server.
+    cmds:
+      - docker run --rm -it --network="host" --env-file nicegui_azure_entra_auth.env --name nicegui_azure_entra_auth -v ${PWD}/data:/home/python_user/nicegui_azure_entra_auth/data nicegui_azure_entra_auth_venv
+    silent: true
+
+  test:
+    desc: Execute your project's tests in Docker container based on the development image.
+    cmds:
+      - docker run --rm -it --network="host" --env-file nicegui_azure_entra_auth.env --name nicegui_azure_entra_auth -v ${PWD}/data:/home/python_user/nicegui_azure_entra_auth/data nicegui_azure_entra_auth_venv /bin/bash -c "task pytest"
+    silent: true
+
+  inspect:
+    desc: Start a container using your development image and open a shell to inspect its contents and execute commands.
+    cmds:
+      - docker run --rm -it --network="host" --env-file nicegui_azure_entra_auth.env --name nicegui_azure_entra_auth -v ${PWD}/data:/home/python_user/nicegui_azure_entra_auth/data nicegui_azure_entra_auth_venv /bin/bash
+    silent: true

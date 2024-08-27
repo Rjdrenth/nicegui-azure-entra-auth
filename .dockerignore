@@ -1,0 +1,6 @@
+.git
+.venv
+artifacts
+
+# Ignore data folder by default. Comment if data is necessary.
+data/
