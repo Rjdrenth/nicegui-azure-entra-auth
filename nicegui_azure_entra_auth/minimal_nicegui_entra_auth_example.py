@@ -1,6 +1,5 @@
 import os
 import uuid
-from urllib.parse import parse_qs, urlparse
 
 import jwt
 import msal
@@ -65,38 +64,22 @@ def index(client: Client):
     the user will be directed to the portal app.
     """
 
-    # Obtain auth_state from referrer if present. If so, use it to determine whether a user is logged in
-    auth_state = None
-    user = None
-
-    # Obtain the `state` parameter from the `referer` URL. If this information is not present, e.g. if this is a fresh
-    # session and no one is logged in yet, or if it comes from a place other than Entra, then this will fail.
-    try:
-        url = client.request.headers.get("referer")
-        if url:
-            parsed_url = urlparse(url)
-            query_params = parse_qs(parsed_url.query)
-            auth_state = query_params.get("state", [None])[0]
-
-            # If an auth state was found, we can use it to obtain the user information
-            if auth_state and auth_state in USER_DATA:
-                user = USER_DATA[auth_state]
-                app.storage.user["auth_state"] = auth_state
-                app.storage.user["user"] = user
-    except Exception as e:
-        print(f"Error processing the state: {e}")
+    # Obtain the browser ID and use it to determine whether the user is logged in or not
+    browser_id = app.storage.browser["id"]
+    user = USER_DATA.get(browser_id, None)
 
     # if "user" was not initialised
     if not user:
+        # Display log in components
         with ui.column().classes("w-full items-center"):
-            # Display log in components
             ui.markdown(f"## NiceGUI Entra authentication app\n Welcome to this app. Please log in").style(
                 "white-space: pre-wrap"
             )
 
             ui.button("Login with Microsoft", on_click=lambda: ui.navigate.to("/login"))
     else:
-        # If the user is logged in, redirect them to the actual app
+        # If the user is logged in, store their information and redirect them to the actual app
+        app.storage.user["user"] = user
         ui.navigate.to("/actual_app")
 
 
@@ -114,7 +97,8 @@ def login():
     )
 
     # Keep track of the auth_flow information as received from Entra
-    AUTH_FLOW_STATES[auth_flow["state"]] = auth_flow
+    browser_id = app.storage.browser["id"]
+    AUTH_FLOW_STATES[browser_id] = auth_flow
 
     # And redirect the user to the Entra login page
     return RedirectResponse(auth_flow["auth_uri"])
@@ -138,19 +122,26 @@ def authorized(client: Client):
     in. If so, we perform some bookkeeping regarding user data. Nothing is displayed to the user.
     """
 
-    # Collect the relevant information to obtain a token from Azure
-    auth_state = client.request.query_params["state"]
+    # Obtain the auth_flow we previously stored for this browser and check whether the `state` in there is
+    # equal to the state from the request.
+    browser_id = app.storage.browser["id"]
+    auth_flow = AUTH_FLOW_STATES.get(browser_id, None)
 
-    # Validate the state parameter to protect against CSRF
-    if auth_state not in AUTH_FLOW_STATES:
-        ui.label("Error: Invalid state parameter.")
+    # No auth flow is known for this browser yet. Send the user back to the login page.
+    if auth_flow is None:
+        return ui.navigate.to("/login")
+
+    # Extract the state that was reported from the redirector - which should be Microsoft and thus correct,
+    # but we should verify this
+    params_auth_state = client.request.query_params["state"]
+
+    # If the states are not equal, we will not continue
+    if params_auth_state != auth_flow["state"]:
+        ui.label(f"Invalid state parameter")
         return
 
-    auth_flow = AUTH_FLOW_STATES[auth_state]
-
-    query_params = dict(client.request.query_params)
-
     # Acquire token by auth code flow
+    query_params = dict(client.request.query_params)
     result = msal_app.acquire_token_by_auth_code_flow(auth_flow, query_params)
 
     if "error" in result:
@@ -166,7 +157,7 @@ def authorized(client: Client):
         return
 
     # Store user information as received from Azure Entra
-    USER_DATA[auth_state] = claims
+    USER_DATA[browser_id] = claims
 
     # Send the user back to home, from where they will be further redirected to the actual app
     ui.navigate.to("/")
@@ -180,16 +171,13 @@ def logout():
     """
 
     # Delete anything related to the user's information
-    auth_state = app.storage.user.get("auth_state", None)
+    browser_id = app.storage.browser["id"]
 
-    if auth_state in AUTH_FLOW_STATES:
-        del AUTH_FLOW_STATES[auth_state]
+    if browser_id in AUTH_FLOW_STATES:
+        del AUTH_FLOW_STATES[browser_id]
 
-    if auth_state in USER_DATA:
-        del USER_DATA[auth_state]
-
-    if "auth_state" in app.storage.user:
-        del app.storage.user["auth_state"]
+    if browser_id in USER_DATA:
+        del USER_DATA[browser_id]
 
     if "user" in app.storage.user:
         del app.storage.user["user"]

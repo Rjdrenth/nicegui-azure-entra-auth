@@ -14,9 +14,9 @@ When I tried deploying my NiceGUI webapp as an Azure Web App I found that adding
 solution to an Azure Web App did not work, as it blocked NiceGUI's websocket communication. This meant I had to resort to adding the authentication
 flow to the application myself. No doubt this method, the method I came up with, is not the best method. I am open to suggestions and improving it.  
 
-This is not a full-fledged repository with proper documentation, it is a bare-minimum effort to hopefully help someone else achieve the same.
-Nevertheless, provided you jumped through all the regular hoops to register an application in Entra and provided the necessary values in the
-[/.env](/.env.template) file, the example application is functional.
+This is not a full-fledged repository with proper documentation, it is a bare-minimum effort (with some unnecessary files from a project
+template) to hopefully help someone else achieve the same. Nevertheless, provided you jumped through all the regular hoops to register
+an application in Entra and provided the necessary values in the [/.env](/.env.template) file, the example application is functional.
 
 The example application itself can be found at [/nicegui_azure_entra_auth/minimal_nicegui_entra_auth_example.py](nicegui_azure_entra_auth/minimal_nicegui_entra_auth_example.py).
 
