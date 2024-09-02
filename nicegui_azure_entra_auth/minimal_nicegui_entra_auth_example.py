@@ -45,11 +45,6 @@ msal_app = msal.ConfidentialClientApplication(
     client_credential=CLIENT_SECRET,
 )
 
-jwks_url = f"https://login.microsoftonline.com/{TENANT_NAME}/discovery/v2.0/keys"
-response = requests.get(jwks_url)
-jwks = response.json()
-TENANT_PUBLIC_KEY = RSAAlgorithm.from_jwk(jwks["keys"][0])
-
 # Cache for in-progress authorisation flows. Give the user 5 minutes to complete the flow
 AUTH_FLOW_STATES = TTLCache(maxsize=256, ttl=60 * 5)
 
@@ -104,11 +99,37 @@ def login():
     return RedirectResponse(auth_flow["auth_uri"])
 
 
-def validate_token(id_token):
+def _get_tenant_public_key_for_key_id(key_id, tenant_name):
+    jwks_url = f"https://login.microsoftonline.com/{tenant_name}/discovery/v2.0/keys"
+    response = requests.get(jwks_url)
+    jwks = response.json()
+
+    # Find the correct key from the available keys
+    key = next((key for key in jwks["keys"] if key["kid"] == key_id), None)
+
+    # Attempt to extract the actual public key
+    if key:
+        public_key = RSAAlgorithm.from_jwk(key)
+    else:
+        raise Exception("Public key not found")
+
+    return public_key
+
+
+def validate_token(jwt_token, tenant_name):
     """Validate the JWT token using the public key from Azure AD."""
+
+    # Obtain relevant specifications from the JWT token
+    header = jwt.get_unverified_header(jwt_token)
+    algorithm = header["alg"]
+    key_id = header["kid"]
+
+    # Obtain the Azure public key corresponding to our tenant and the given `key_id`.
+    tenant_public_key = _get_tenant_public_key_for_key_id(key_id, tenant_name)
+
     try:
         # Decode the token, verifying the signature and claims
-        decoded_token = jwt.decode(id_token, TENANT_PUBLIC_KEY, algorithms=["RS256"], audience=CLIENT_ID)
+        decoded_token = jwt.decode(jwt_token, tenant_public_key, algorithms=[algorithm], audience=CLIENT_ID)
         return decoded_token
     except jwt.PyJWTError as e:
         print(f"Token validation error: {e}")
@@ -148,9 +169,10 @@ def authorized(client: Client):
         ui.label(f"Error: {result['error']} - {result.get('error_description')}")
         return
 
-    # Validate and store the ID token
+    # Verify the claims made in the token by decoding the encrypted contents using the Microsoft Entra public key for
+    # our tenant.
     id_token = result.get("id_token")
-    claims = validate_token(id_token)
+    claims = validate_token(id_token, TENANT_NAME)
 
     if not claims:
         ui.label("Error: Invalid ID token.")
