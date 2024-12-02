@@ -18,13 +18,13 @@ repos:
         args: ['--maxkb=5120']  # 5 mb
 
   - repo: https://github.com/psf/black
-    rev: 23.11.0  # Replace by any tag/version: https://github.com/psf/black/tags
+    rev: 24.10.0  # Replace by any tag/version: https://github.com/psf/black/tags
     hooks:
       - id: black
-        language_version: python3 # Should be a command that runs python3.6+
+        language_version: python3.12 # Should be a command that runs python3.6+
 
   - repo: https://github.com/pycqa/isort
-    rev: 5.10.1
+    rev: 5.13.1
     hooks:
       - id: isort
         name: isort (python)

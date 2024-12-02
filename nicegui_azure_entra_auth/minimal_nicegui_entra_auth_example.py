@@ -100,6 +100,12 @@ def login():
 
 
 def _get_tenant_public_key_for_key_id(key_id, tenant_name):
+    """
+    Obtain the public key used by Azure AD to sign tokens.
+
+    Note that this method obtains all public keys on every call. This could be optimised by caching these keys and/or by
+    only obtaining keys that are not yet present in the cache.
+    """
     jwks_url = f"https://login.microsoftonline.com/{tenant_name}/discovery/v2.0/keys"
     response = requests.get(jwks_url)
     jwks = response.json()
@@ -124,7 +130,7 @@ def validate_token(jwt_token, tenant_name):
     algorithm = header["alg"]
     key_id = header["kid"]
 
-    # Obtain the Azure public key corresponding to our tenant and the given `key_id`.
+    # Obtain the Azure public key corresponding to our tenant and the given `key_id` that was included in the JWT token.
     tenant_public_key = _get_tenant_public_key_for_key_id(key_id, tenant_name)
 
     try:
